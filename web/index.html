@@ -1,0 +1,246 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Product CRUD (JDBC + MySQL)</title>
+    <link rel="stylesheet" href="/index.css" />
+  </head>
+  <body>
+    <div class="container">
+      <header class="header">
+        <h1>Product CRUD</h1>
+        <p class="muted">Frontend UI → Java HTTP Server → JDBC → MySQL</p>
+      </header>
+
+      <section class="card">
+        <h2>Add Product</h2>
+        <form id="addForm" class="grid">
+          <label>
+            Name
+            <input name="name" required />
+          </label>
+          <label>
+            Description
+            <input name="description" />
+          </label>
+          <label>
+            Price
+            <input name="price" type="number" step="0.01" required />
+          </label>
+          <label>
+            Quantity
+            <input name="quantity" type="number" step="1" required />
+          </label>
+          <div class="actions">
+            <button type="submit">Add</button>
+            <button type="button" id="refreshBtn" class="secondary">Refresh</button>
+          </div>
+        </form>
+      </section>
+
+      <section class="card">
+        <h2>Products</h2>
+        <div class="tableWrap">
+          <table>
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Name</th>
+                <th>Description</th>
+                <th class="right">Price</th>
+                <th class="right">Qty</th>
+              </tr>
+            </thead>
+            <tbody id="productsBody">
+              <tr>
+                <td colspan="5" class="muted">Loading...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>View / Update / Delete</h2>
+        <div class="row">
+          <label>
+            Product ID
+            <input id="idInput" type="number" step="1" />
+          </label>
+          <div class="actions">
+            <button id="viewBtn" class="secondary" type="button">View</button>
+            <button id="deleteBtn" class="danger" type="button">Delete</button>
+          </div>
+        </div>
+
+        <div class="muted small">
+          Tip: Use “View” first to auto-fill update fields.
+        </div>
+
+        <form id="updateForm" class="grid top">
+          <label>
+            New Name
+            <input name="name" required />
+          </label>
+          <label>
+            New Description
+            <input name="description" />
+          </label>
+          <label>
+            New Price
+            <input name="price" type="number" step="0.01" required />
+          </label>
+          <label>
+            New Quantity
+            <input name="quantity" type="number" step="1" required />
+          </label>
+          <div class="actions">
+            <button type="submit">Update</button>
+          </div>
+        </form>
+      </section>
+
+      <section class="card">
+        <h2>Status</h2>
+        <pre id="status" class="status">Ready.</pre>
+      </section>
+    </div>
+
+    <script>
+      const statusEl = document.getElementById("status");
+      const productsBody = document.getElementById("productsBody");
+
+      function setStatus(message) {
+        statusEl.textContent = message;
+      }
+
+      function escapeHtml(value) {
+        return String(value)
+          .replaceAll("&", "&amp;")
+          .replaceAll("<", "&lt;")
+          .replaceAll(">", "&gt;")
+          .replaceAll('"', "&quot;")
+          .replaceAll("'", "&#039;");
+      }
+
+      async function loadProducts() {
+        setStatus("Loading products...");
+        try {
+          const res = await fetch("/api/products");
+          const data = await res.json();
+
+          if (!Array.isArray(data) || data.length === 0) {
+            productsBody.innerHTML =
+              '<tr><td colspan="5" class="muted">No products found.</td></tr>';
+            setStatus("No products found.");
+            return;
+          }
+
+          productsBody.innerHTML = data
+            .map(
+              (p) => `
+              <tr>
+                <td>${escapeHtml(p.id)}</td>
+                <td>${escapeHtml(p.name)}</td>
+                <td>${escapeHtml(p.description ?? "")}</td>
+                <td class="right">${escapeHtml(p.price)}</td>
+                <td class="right">${escapeHtml(p.quantity)}</td>
+              </tr>
+            `
+            )
+            .join("");
+          setStatus(`Loaded ${data.length} products.`);
+        } catch (e) {
+          setStatus("Error loading products: " + e.message);
+        }
+      }
+
+      document.getElementById("refreshBtn").addEventListener("click", loadProducts);
+
+      document.getElementById("addForm").addEventListener("submit", async (e) => {
+        e.preventDefault();
+        setStatus("Adding product...");
+        const formData = new FormData(e.target);
+
+        try {
+          const res = await fetch("/api/products", {
+            method: "POST",
+            headers: { "Content-Type": "application/x-www-form-urlencoded" },
+            body: new URLSearchParams(formData),
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data?.error || "Failed");
+
+          e.target.reset();
+          await loadProducts();
+          setStatus("Product added.");
+        } catch (err) {
+          setStatus("Add failed: " + err.message);
+        }
+      });
+
+      document.getElementById("viewBtn").addEventListener("click", async () => {
+        const id = document.getElementById("idInput").value;
+        if (!id) return setStatus("Enter a product ID.");
+        setStatus("Loading product " + id + "...");
+        try {
+          const res = await fetch(`/api/products/${id}`);
+          const data = await res.json();
+          if (!res.ok) throw new Error(data?.error || "Not found");
+
+          const updateForm = document.getElementById("updateForm");
+          updateForm.name.value = data.name ?? "";
+          updateForm.description.value = data.description ?? "";
+          updateForm.price.value = data.price ?? "";
+          updateForm.quantity.value = data.quantity ?? "";
+          setStatus("Loaded product " + id + " into update form.");
+        } catch (err) {
+          setStatus("View failed: " + err.message);
+        }
+      });
+
+      document.getElementById("deleteBtn").addEventListener("click", async () => {
+        const id = document.getElementById("idInput").value;
+        if (!id) return setStatus("Enter a product ID.");
+        if (!confirm("Delete product " + id + "?")) return;
+        setStatus("Deleting product " + id + "...");
+        try {
+          const res = await fetch(`/api/products/${id}`, { method: "DELETE" });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data?.error || "Failed");
+          await loadProducts();
+          setStatus("Deleted product " + id + ".");
+        } catch (err) {
+          setStatus("Delete failed: " + err.message);
+        }
+      });
+
+      document.getElementById("updateForm").addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const id = document.getElementById("idInput").value;
+        if (!id) return setStatus("Enter a product ID.");
+        setStatus("Updating product " + id + "...");
+        const formData = new FormData(e.target);
+
+        try {
+          const res = await fetch(`/api/products/${id}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/x-www-form-urlencoded" },
+            body: new URLSearchParams(formData),
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data?.error || "Failed");
+
+          await loadProducts();
+          setStatus("Updated product " + id + ".");
+        } catch (err) {
+          setStatus("Update failed: " + err.message);
+        }
+      });
+
+      loadProducts();
+    </script>
+  </body>
+</html>
+
