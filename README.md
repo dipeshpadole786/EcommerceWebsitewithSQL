@@ -56,13 +56,14 @@ This project is developed using **Core Java** for backend logic and **JDBC** for
 ---
 
 ## 📸 Screenshots
-- Home Page (Web UI)  
-- Product List Table  
-- Add Product Form  
-- Update Product Screen  
-- Delete Product Confirmation  
+### Screenshot 1
+![Screenshot 1](Images/Image1.png)
 
-*(Add your actual screenshots here before submission)*
+### Screenshot 2
+![Screenshot 2](Images/Image2.png)
+
+### Screenshot 3
+![Screenshot 3](Images/Image3.png)
 
 ---
 
